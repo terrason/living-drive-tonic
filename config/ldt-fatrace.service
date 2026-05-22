@@ -1,0 +1,13 @@
+[Unit]
+Description=Fatrace all writer acitvities
+After=basic.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/fatrace -t -c --filter="W+D<>"
+StandardOutput=append:/%I/terrason/Public/fatracelog.log
+Restart=on-failure
+User=root
+
+[Install]
+WantedBy=multi-user.target
