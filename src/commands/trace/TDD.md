@@ -118,12 +118,50 @@ sqlite persist
 
 ---
 
-# 9. 错误处理
+# 9. 事件处理与日志
+
+### 启动
+
+- 应读取配置并初始化数据库
+- 应启动 `fatrace` 并记录 `INFO` 级启动日志
+
+### 事件处理
+
+- 每个输入行应被解析为 JSON 并提取 path
+- 匹配 category 并更新 counter
+- 解析失败应记录 `INFO` / `DEBUG` 日志
+- 未匹配路径应记录 `DEBUG` 日志
+
+### flush
+
+- 应周期性 swap buffer 并持久化
+- flush 开始与完成应记录日志
+- flush 失败应至少一次重试并记录错误
+
+### 关闭
+
+- SIGTERM / SIGINT 应触发最终 flush
+- 关闭过程应记录 `INFO` 日志
+
+---
+
+# 11. 错误处理与日志
 
 ## JSON parse error
 
 - 忽略该行
-- 可选日志记录
+- **INFO 级日志**：记录原始行内容以便调试
+  ```
+  [TRACE] Malformed JSON line: {raw line}
+  ```
+
+## unmatched 路径
+
+- bucket = `__UNMATCHED__`
+- **DEBUG 级日志**：记录未匹配路径以便分析 category 覆盖率
+  ```
+  [TRACE] Unmatched path: {event.path}
+  ```
 
 ## fatrace crash
 
@@ -133,7 +171,7 @@ sqlite persist
 
 ---
 
-# 10. shutdown 流程
+# 12. shutdown 流程
 
 收到 SIGTERM / SIGINT：
 

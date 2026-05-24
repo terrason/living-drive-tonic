@@ -9,7 +9,13 @@ await db.insert(schema.categoryTable).values([
     path: "/home/terrason/.config/"
   },
   {
-    path: "/home/terrason/.local/"
+    path: "/home/terrason/.local/share/"
+  },
+  {
+    path: "/home/terrason/.local/state/"
+  },
+  {
+    path: "/home/terrason/.local"
   },
   {
     path: "/home/terrason/"
@@ -19,9 +25,6 @@ await db.insert(schema.categoryTable).values([
   },
   {
     path: "/usr/"
-  },
-  {
-    path: "/var/cache"
   },
   {
     path: "/var/"

@@ -6,7 +6,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-export const db = drizzle(process.env["DB_FILE_NAME"] ?? path.join(os.homedir(), ".local/share/living-drive-tonic/sqlite.db"));
+export const dbPath=process.env["DB_FILE_NAME"] ?? "/var/lib/living-drive-tonic/sqlite.db";
+export const db = drizzle(dbPath);
 
 export interface LocalContext extends CommandContext, StricliAutoCompleteContext {
     readonly process: NodeJS.Process;

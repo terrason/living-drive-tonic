@@ -3,6 +3,8 @@ import { version, description } from "../package.json";
 import { initCommand } from "./commands/init/command";
 import { purgeCommand } from "./commands/purge/command";
 import { traceCommand } from "./commands/trace/command";
+import { resetCommand } from "./commands/reset/command";
+import { statCommand } from "./commands/stat/command";
 import { configCommand } from "./commands/config/command";
 import { bindCommand } from "./commands/bind/command";
 import { unbindCommand } from "./commands/unbind/command";
@@ -14,6 +16,8 @@ const routes = buildRouteMap({
         init: initCommand,
         purge: purgeCommand,
         trace: traceCommand,
+        reset: resetCommand,
+        stat: statCommand,
         config: configCommand,
         bind: bindCommand,
         unbind: unbindCommand,

@@ -6,210 +6,265 @@ import * as schema from "../../db/schema";
 import { eq } from "drizzle-orm";
 
 interface TraceCommandFlags {
-  // ...
+    // ...
 }
 
 interface Category {
-  path: string;
-  id: number;
+    path: string;
+    id: number;
 }
 
 interface DualBuffer {
-  incrementActive: (bucket: string, count?: number) => void;
-  getFlush: () => Map<string, number>;
-  swap: () => void;
+    incrementActive: (bucket: string, count?: number) => void;
+    getFlush: () => Map<string, number>;
+    swap: () => void;
 }
 
 function loadConfig(): { flushPeriodMs: number } {
-  const periodMinutes =
-    parseInt(process.env["TRACE_FLUSH_PERIOD_MINUTES"] || "30", 10);
+    const periodMinutes =
+        parseInt(process.env["LDT_TRACE_FLUSH_PERIOD_MINUTES"] || "30", 10);
 
-  if (isNaN(periodMinutes)) {
-    throw new Error(
-      "Invalid TRACE_FLUSH_PERIOD_MINUTES: must be a number"
-    );
-  }
+    if (isNaN(periodMinutes)) {
+        throw new Error(
+            "Invalid LDT_TRACE_FLUSH_PERIOD_MINUTES: must be a number"
+        );
+    }
 
-  if (periodMinutes < 10) {
-    throw new Error("TRACE_FLUSH_PERIOD_MINUTES must be at least 10 minutes");
-  }
+    if (periodMinutes < 10) {
+        throw new Error("LDT_TRACE_FLUSH_PERIOD_MINUTES must be at least 10 minutes");
+    }
 
-  return { flushPeriodMs: periodMinutes * 60 * 1000 };
+    return { flushPeriodMs: periodMinutes * 60 * 1000 };
 }
 
 async function loadCategories(): Promise<Category[]> {
-  const categories = await db
-    .select({ path: schema.categoryTable.path, id: schema.categoryTable.id })
-    .from(schema.categoryTable);
+    const categories = await db
+        .select({ path: schema.categoryTable.path, id: schema.categoryTable.id })
+        .from(schema.categoryTable);
 
-  if (categories.length === 0) {
-    console.log("No categories configured. Please add categories to start tracing.");
-    process.exit(0);
-  }
-
-  return categories;
-}
-
-function buildCategoryIndex(categories: Category[]) {
-  const sorted = [...categories].sort(
-    (a, b) => b.path.length - a.path.length
-  );
-
-  return (filePath: string): string => {
-    for (const cat of sorted) {
-      const catPath = cat.path;
-      const isSubdirRule = catPath.endsWith("/");
-
-      if (isSubdirRule) {
-        const basePath = catPath.slice(0, -1);
-        if (filePath.startsWith(basePath + "/") || filePath === basePath) {
-          const relative = filePath.slice(basePath.length + 1);
-          const firstSlash = relative.indexOf("/");
-          if (firstSlash === -1) {
-            return filePath;
-          }
-          const subdir = relative.slice(0, firstSlash);
-          return basePath + "/" + subdir;
-        }
-      } else {
-        if (filePath === catPath || filePath.startsWith(catPath + "/")) {
-          return catPath;
-        }
-      }
+    if (categories.length === 0) {
+        console.log("No categories configured. Please add categories to start tracing.");
+        process.exit(0);
     }
 
-    return "__UNMATCHED__";
-  };
+    console.log(`[TRACE] Loaded ${categories.length} categories from database`);
+    categories.forEach((cat) => console.log(`  - ${cat.path}`));
+
+    return categories;
+}
+
+const UNMATCHED = "__UNMATCHED__";
+function buildCategoryIndex(categories: Category[]) {
+    const sorted = [...categories].sort(
+        (a, b) => b.path.length - a.path.length
+    );
+
+    return (filePath: string): string => {
+        for (const cat of sorted) {
+            const catPath = cat.path;
+            const isSubdirRule = catPath.endsWith("/");
+
+            if (isSubdirRule) {
+                const basePath = catPath.slice(0, -1);
+                if (filePath.startsWith(basePath + "/") || filePath === basePath) {
+                    const relative = filePath.slice(basePath.length + 1);
+                    const firstSlash = relative.indexOf("/");
+                    if (firstSlash === -1) {
+                        return filePath;
+                    }
+                    const subdir = relative.slice(0, firstSlash);
+                    return basePath + "/" + subdir;
+                }
+            } else {
+                if (filePath === catPath || filePath.startsWith(catPath + "/")) {
+                    return catPath;
+                }
+            }
+        }
+
+        return UNMATCHED;
+    };
 }
 
 function createDualBuffer(): DualBuffer {
-  let active = new Map<string, number>();
-  let flush = new Map<string, number>();
+    let active = new Map<string, number>();
+    let flush = new Map<string, number>();
 
-  return {
-    incrementActive: (bucket: string, count: number = 1) => {
-      active.set(bucket, (active.get(bucket) || 0) + count);
-    },
-    getFlush: () => flush,
-    swap: () => {
-      flush = active;
-      active = new Map<string, number>();
-    },
-  };
+    return {
+        incrementActive: (bucket: string, count: number = 1) => {
+            active.set(bucket, (active.get(bucket) || 0) + count);
+        },
+        getFlush: () => flush,
+        swap: () => {
+            flush = active;
+            active = new Map<string, number>();
+        },
+    };
 }
 
 async function persistToDatabase(flushBuffer: Map<string, number>) {
-  for (const [bucket, count] of flushBuffer.entries()) {
-    try {
-      const existing = await db
-        .select({ count: schema.statTable.count })
-        .from(schema.statTable)
-        .where(eq(schema.statTable.path, bucket));
+    console.log(
+        `[TRACE] Flush started (${flushBuffer.size} buckets)`
+    );
+    const startTime = Date.now();
+    let successCount = 0;
+    let errorCount = 0;
+    let totalCount = 0;
 
-      if (existing.length > 0) {
-        const currentCount = existing[0]?.count ?? 0;
-        await db
-          .update(schema.statTable)
-          .set({ count: currentCount + count })
-          .where(eq(schema.statTable.path, bucket));
-      } else {
-        await db.insert(schema.statTable).values({
-          path: bucket,
-          count: count,
-        });
-      }
-    } catch (error) {
-      console.error(
-        `[${new Date().toISOString()}] Failed to persist stat for ${bucket}:`,
-        error
-      );
+    for (const [bucket, count] of flushBuffer.entries()) {
+        totalCount += count;
+        try {
+            const existing = await db
+                .select({ count: schema.statTable.count })
+                .from(schema.statTable)
+                .where(eq(schema.statTable.path, bucket));
+
+            if (existing.length > 0) {
+                const currentCount = existing[0]?.count ?? 0;
+                await db
+                    .update(schema.statTable)
+                    .set({ count: currentCount + count })
+                    .where(eq(schema.statTable.path, bucket));
+            } else {
+                await db.insert(schema.statTable).values({
+                    path: bucket,
+                    count: count,
+                });
+            }
+            successCount++;
+        } catch (error) {
+            errorCount++;
+            console.error(
+                `[${new Date().toISOString()}] Failed to persist stat for ${bucket}:`,
+                error
+            );
+        }
     }
-  }
+
+    const duration = Date.now() - startTime;
+    console.log(
+        `[TRACE] Flushed ${flushBuffer.size} buckets (${totalCount} events, ${successCount} ok, ${errorCount} failed) in ${duration}ms`
+    );
 }
 
-function parseLineEvent(line: string): { comm?: string; pid?: number; path?: string } | null {
-  try {
-    const obj = JSON.parse(line);
-    return {
-      comm: obj.comm,
-      pid: obj.pid,
-      path: obj.path,
-    };
-  } catch {
-    return null;
-  }
+function parseLineEvent(line: string): { comm?: string; pid?: number; types?: string; path?: string } | null {
+    try {
+        const obj = JSON.parse(line);
+        return {
+            comm: obj.comm,
+            pid: obj.pid,
+            types: obj.types,
+            path: obj.path,
+        };
+    } catch {
+        console.log(`[INFO] Malformed JSON line: ${line}`);
+        return null;
+    }
 }
 
 export default async function (
-  this: LocalContext,
-  _flags: TraceCommandFlags
+    this: LocalContext,
+    _flags: TraceCommandFlags
 ): Promise<void> {
-  const { flushPeriodMs } = loadConfig();
-  const categories = await loadCategories();
-  const matcher = buildCategoryIndex(categories);
-  const buffer = createDualBuffer();
+    const { flushPeriodMs } = loadConfig();
+    const categories = await loadCategories();
+    const matcher = buildCategoryIndex(categories);
+    const buffer = createDualBuffer();
 
-  const fatrace = spawn("/usr/bin/fatrace", ["-cj", "--filter=W+D<>"]);
+    console.log(
+        `[TRACE] Starting trace command with ${flushPeriodMs / 1000 / 60}-minute flush period`
+    );
 
-  if (!fatrace.stdout) {
-    console.error("Failed to spawn fatrace process");
-    process.exit(1);
-  }
+    const fatrace = spawn("/usr/bin/fatrace", ["-cj", '--filter=W+D<>']);
 
-  const readline = createInterface({
-    input: fatrace.stdout as NodeJS.ReadableStream,
-    crlfDelay: Infinity,
-  });
-
-  let isShuttingDown = false;
-  let flushInProgress: Promise<void> | null = null;
-
-  readline.on("line", (line: string) => {
-    if (isShuttingDown) return;
-
-    const event = parseLineEvent(line);
-    if (!event || !event.path) {
-      return;
-    }
-
-    const bucket = matcher(event.path);
-    buffer.incrementActive(bucket);
-  });
-
-  const flushInterval = setInterval(() => {
-    if (flushInProgress) return;
-
-    buffer.swap();
-    const flushBuf = buffer.getFlush();
-    flushInProgress = persistToDatabase(flushBuf).finally(() => {
-      flushInProgress = null;
+    fatrace.on('error', (err) => {
+        console.error('Failed to spawn fatrace process', err);
+        process.exit(1);
     });
-  }, flushPeriodMs);
+    fatrace.on('close', (code) => {
+        if (code !== 0) {
+            console.error('Failed to spawn fatrace process: fatrace exit code:%d', code);
+            process.exit(1);
+        }
+    });
 
-  const handleShutdown = async () => {
-    isShuttingDown = true;
-    clearInterval(flushInterval);
-    readline.close();
-    fatrace.kill();
+    fatrace.stderr.on('data', (data) => {
+        console.error(`${data}`);
+    });
 
-    buffer.swap();
-    const flushBuf = buffer.getFlush();
-    await persistToDatabase(flushBuf);
 
-    if (flushInProgress) {
-      await Promise.race([
-        flushInProgress,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Flush timeout")), 5000)
-        ),
-      ]).catch(() => {
-        console.error("Final flush timed out");
-      });
+    if (!fatrace.stdout) {
+        console.error("Failed to spawn fatrace process");
+        process.exit(1);
     }
 
-    process.exit(0);
-  };
+    console.log("[TRACE] fatrace process spawned successfully");
 
-  process.on("SIGTERM", handleShutdown);
-  process.on("SIGINT", handleShutdown);
+    const readline = createInterface({
+        input: fatrace.stdout as NodeJS.ReadableStream,
+        crlfDelay: Infinity,
+    });
+
+    let isShuttingDown = false;
+    let flushInProgress: Promise<void> | null = null;
+    let eventCount = 0;
+
+    readline.on("line", (line: string) => {
+        if (isShuttingDown) return;
+
+        const event = parseLineEvent(line);
+        if (!event || !event.path) {
+            //不输出日志，存在很多 `{"comm":"code","pid":6091,"types":"CW"}` 这样的行
+            return;
+        }
+
+        const bucket = matcher(event.path);
+        if (bucket === UNMATCHED) {
+            console.debug(`[DEBUG] Unmatched path: ${event.path}`);
+        }
+        buffer.incrementActive(bucket);
+        eventCount++;
+    });
+
+    function flush() {
+        if (flushInProgress) return;
+
+        buffer.swap();
+        const flushBuf = buffer.getFlush();
+        flushInProgress = persistToDatabase(flushBuf).finally(() => {
+            flushInProgress = null;
+        });
+    }
+    const flushInterval = setInterval(flush, flushPeriodMs);
+
+    const handleShutdown = async () => {
+        isShuttingDown = true;
+        console.log("[TRACE] Shutdown signal received");
+        clearInterval(flushInterval);
+        readline.close();
+        fatrace.kill();
+
+        buffer.swap();
+        const flushBuf = buffer.getFlush();
+        console.log(`[TRACE] Performing final flush (${eventCount} total events processed)`);
+        await persistToDatabase(flushBuf);
+
+        if (flushInProgress) {
+            await Promise.race([
+                flushInProgress,
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("Flush timeout")), 5000)
+                ),
+            ]).catch(() => {
+                console.error("Final flush timed out");
+            });
+        }
+
+        console.log("[TRACE] Shutdown complete");
+        process.exit(0);
+    };
+
+    process.on("SIGTERM", handleShutdown);
+    process.on("SIGINT", handleShutdown);
+    process.on("SIGUSR1", flush);
 }

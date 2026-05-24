@@ -1,4 +1,3 @@
-import { count } from "drizzle-orm";
 import { int, sqliteTable, text, index } from "drizzle-orm/sqlite-core";
 
 export const categoryTable = sqliteTable("categories", {

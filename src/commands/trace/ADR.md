@@ -142,10 +142,28 @@ category 是用户定义的路径规则，有两种形式：
 - flush 不阻塞 ingestion
 - flush 失败会重试
 - 保证增量不会丢失
+- flush 生命周期应有明确日志记录
 
 ---
 
-## 4.7 持久化模型
+## 4.7 日志模型
+
+系统应在关键 lifecycle 阶段输出可追踪日志：
+
+- 启动：配置加载、数据库初始化、fatrace 启动
+- 事件处理：解析失败、未匹配路径、bucket 命中
+- flush：开始、完成、失败与重试
+- 关闭：shutdown initiated、flush completed、shutdown complete
+
+日志目的：
+
+- 提供故障排查点
+- 记录运行状态和持久化行为
+- 帮助确认 startup/flush/shutdown 是否正常执行
+
+---
+
+## 4.8 持久化模型
 
 使用 SQLite：
 

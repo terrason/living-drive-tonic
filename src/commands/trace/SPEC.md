@@ -110,10 +110,29 @@ flush 行为：
 - ingestion 不暂停
 - flush 可重试
 - 不丢增量
+- flush 开始、完成和失败都应记录日志
 
 ---
 
-# 8. 持久化语义
+# 8. 运行与日志语义
+
+系统记录的关键生命周期事件包括：
+
+- 启动
+  - `INFO`：`ldt-trace starting`, 配置加载、database 初始化、fatrace 启动
+- 事件处理
+  - `DEBUG`：接收到 event path、matched bucket
+  - `DEBUG`：`Unmatched path: {event.path}`
+  - `INFO`：`Malformed JSON line: {raw line}`
+- flush 操作
+  - `INFO`：`flush started`, `flush completed`
+  - `ERROR`：flush 失败和重试详情
+- 关闭
+  - `INFO`：`shutdown initiated`, `flush completed`, `shutdown complete`
+
+---
+
+# 9. 持久化语义
 
 SQLite 表：
 
