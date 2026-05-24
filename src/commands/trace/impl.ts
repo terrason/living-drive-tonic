@@ -162,6 +162,7 @@ function parseLineEvent(line: string): { comm?: string; pid?: number; types?: st
     }
 }
 
+
 export default async function (
     this: LocalContext,
     _flags: TraceCommandFlags
@@ -172,7 +173,7 @@ export default async function (
     const buffer = createDualBuffer();
 
     console.log(
-        `[INFO] Starting trace command with ${flushPeriodMs / 1000 / 60}-minute flush period`
+        `[INFO] Starting trace command with ${flushPeriodMs / 1000 / 60}-minute flush period with pid=${process.pid}`
     );
 
     const fatrace = spawn("/usr/bin/fatrace", ["-cj", '--filter=W+D<>']);
@@ -235,12 +236,12 @@ export default async function (
             flushInProgress = null;
         });
     }
-    const flushInterval = setInterval(flush, flushPeriodMs);
+    let flushTimer = setInterval(flush, flushPeriodMs);
 
     const handleShutdown = async () => {
         isShuttingDown = true;
         console.log("[TRACE] Shutdown signal received");
-        clearInterval(flushInterval);
+        clearInterval(flushTimer);
         readline.close();
         fatrace.kill();
 
@@ -266,5 +267,9 @@ export default async function (
 
     process.on("SIGTERM", handleShutdown);
     process.on("SIGINT", handleShutdown);
-    process.on("SIGUSR1", flush);
+    process.on("SIGUSR1", function(){
+        clearInterval(flushTimer);
+        flush();
+        flushTimer = setInterval(flush, flushPeriodMs);
+    });
 }
