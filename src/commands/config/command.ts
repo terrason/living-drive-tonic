@@ -1,6 +1,6 @@
 import { buildCommand } from "@stricli/core";
 
-export const analyzeCommand = buildCommand({
+export const configCommand = buildCommand({
     loader: async () => import("./impl"),
     parameters: {
         positional: {
@@ -9,6 +9,6 @@ export const analyzeCommand = buildCommand({
         },
     },
     docs: {
-        brief: "Analyze",
+        brief: "Config",
     },
 });

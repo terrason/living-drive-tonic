@@ -5,6 +5,7 @@ await build({
   outdir: "dist",
   target: "bun",
   format: "esm",
-  minify: true,
-  splitting: true,
+  minify: false,
+  splitting: false,
+  sourcemap: "external",
 });

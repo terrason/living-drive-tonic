@@ -9,6 +9,8 @@ export const initCommand = buildCommand({
         },
     },
     docs: {
-        brief: "Initialize",
+        brief: "Initialize the living drive",
+        description: "Sets up the storage areas needed to protect your portable Linux drive and extend its lifespan",
     },
 });
+

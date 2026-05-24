@@ -9,6 +9,7 @@ export const purgeCommand = buildCommand({
         },
     },
     docs: {
-        brief: "Purge",
+        brief: "Remove the living drive",
+        description: "Removes all storage areas created during initialization and reverts the setup",
     },
 });

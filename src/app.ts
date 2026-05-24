@@ -1,9 +1,9 @@
 import { buildApplication, buildRouteMap } from "@stricli/core";
-import { name, version, description } from "../package.json";
+import { version, description } from "../package.json";
 import { initCommand } from "./commands/init/command";
 import { purgeCommand } from "./commands/purge/command";
 import { traceCommand } from "./commands/trace/command";
-import { analyzeCommand } from "./commands/analyze/command";
+import { configCommand } from "./commands/config/command";
 import { bindCommand } from "./commands/bind/command";
 import { unbindCommand } from "./commands/unbind/command";
 import { syncCommand } from "./commands/sync/command";
@@ -14,7 +14,7 @@ const routes = buildRouteMap({
         init: initCommand,
         purge: purgeCommand,
         trace: traceCommand,
-        analyze: analyzeCommand,
+        config: configCommand,
         bind: bindCommand,
         unbind: unbindCommand,
         sync: syncCommand,
@@ -26,7 +26,7 @@ const routes = buildRouteMap({
 });
 
 export const app = buildApplication(routes, {
-    name,
+    name: "ldt",
     versionInfo: {
         currentVersion: version,
     },
