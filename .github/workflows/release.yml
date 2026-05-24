@@ -1,0 +1,30 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v*' # Triggers on tags like v1.0.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build
+        run: bun build --outdir ./dist --production --target=bun --format=esm src/bin/cli.ts src/bin/bash-complete.ts
+
+      - name: Package
+        run: bun pm pack --filename living-drive-tonic.tgz
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: living-drive-tonic.tgz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

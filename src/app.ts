@@ -1,4 +1,5 @@
 import { buildApplication, buildRouteMap } from "@stricli/core";
+import { buildInstallCommand, buildUninstallCommand } from "@stricli/auto-complete";
 import { version, description } from "../package.json";
 import { initCommand } from "./commands/init/command";
 import { purgeCommand } from "./commands/purge/command";
@@ -10,6 +11,8 @@ import { bindCommand } from "./commands/bind/command";
 import { unbindCommand } from "./commands/unbind/command";
 import { syncCommand } from "./commands/sync/command";
 import { unsyncCommand } from "./commands/unsync/command";
+
+const BIN_NAME="ldt";
 
 const routes = buildRouteMap({
     routes: {
@@ -23,6 +26,8 @@ const routes = buildRouteMap({
         unbind: unbindCommand,
         sync: syncCommand,
         unsync: unsyncCommand,
+        install: buildInstallCommand(BIN_NAME, { bash: `__${BIN_NAME}_bash_complete` }),
+        uninstall: buildUninstallCommand(BIN_NAME, { bash: true }),
     },
     docs: {
         brief: description,
@@ -30,7 +35,7 @@ const routes = buildRouteMap({
 });
 
 export const app = buildApplication(routes, {
-    name: "ldt",
+    name: BIN_NAME,
     versionInfo: {
         currentVersion: version,
     },
