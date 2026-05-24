@@ -172,7 +172,7 @@ export default async function (
     const buffer = createDualBuffer();
 
     console.log(
-        `[TRACE] Starting trace command with ${flushPeriodMs / 1000 / 60}-minute flush period`
+        `[INFO] Starting trace command with ${flushPeriodMs / 1000 / 60}-minute flush period`
     );
 
     const fatrace = spawn("/usr/bin/fatrace", ["-cj", '--filter=W+D<>']);
@@ -246,7 +246,7 @@ export default async function (
 
         buffer.swap();
         const flushBuf = buffer.getFlush();
-        console.log(`[TRACE] Performing final flush (${eventCount} total events processed)`);
+        console.log(`[INFO] Performing final flush (${eventCount} total events processed)`);
         await persistToDatabase(flushBuf);
 
         if (flushInProgress) {
@@ -260,7 +260,7 @@ export default async function (
             });
         }
 
-        console.log("[TRACE] Shutdown complete");
+        console.log("[INFO] Shutdown complete");
         process.exit(0);
     };
 
