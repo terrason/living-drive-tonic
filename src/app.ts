@@ -3,7 +3,9 @@ import { buildInstallCommand, buildUninstallCommand } from "@stricli/auto-comple
 import { version, description } from "../package.json";
 import { initCommand } from "./commands/init/command";
 import { purgeCommand } from "./commands/purge/command";
-import { traceCommand } from "./commands/trace/command";
+import { migrateCommand } from "./commands/migrate/command";
+import { fatraceRelayCommand } from "./commands/trace/commands/fatrace-relay/command";
+import { traceStartCommand } from "./commands/trace/commands/start/command";
 import { resetCommand } from "./commands/reset/command";
 import { statCommand } from "./commands/stat/command";
 import { configCommand } from "./commands/config/command";
@@ -16,9 +18,20 @@ const BIN_NAME="ldt";
 
 const routes = buildRouteMap({
     routes: {
-        init: initCommand,
-        purge: purgeCommand,
-        trace: traceCommand,
+        // init: initCommand,
+        // purge: purgeCommand,
+        migrate: migrateCommand,
+        trace: buildRouteMap({
+            routes: {
+                relay: fatraceRelayCommand,
+                start: traceStartCommand,
+            },
+            defaultCommand: "start",
+            docs: {
+                brief: "Trace file access patterns",
+                description: "Continuously observes system file access behavior and aggregates statistics by configured categories",
+            },
+        }),
         reset: resetCommand,
         stat: statCommand,
         config: configCommand,
@@ -31,6 +44,11 @@ const routes = buildRouteMap({
     },
     docs: {
         brief: description,
+        hideRoute: {
+            migrate: true,
+            install: true,
+            uninstall: true,
+        },
     },
 });
 

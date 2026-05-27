@@ -1,11 +1,11 @@
-import { spawn } from "node:child_process";
+import net from "node:net";
 import { createInterface } from "node:readline";
-import type { LocalContext } from "../../context";
-import { db } from "../../context";
-import * as schema from "../../db/schema";
+import type { LocalContext } from "../../../../context";
+import { getDatabase, EXIT, RELAY_SOCKET_PATH } from "../../../../context";
+import * as schema from "../../../../db/schema";
 import { eq } from "drizzle-orm";
 
-interface TraceCommandFlags {
+interface DEBUGCommandFlags {
     // ...
 }
 
@@ -22,32 +22,33 @@ interface DualBuffer {
 
 function loadConfig(): { flushPeriodMs: number } {
     const periodMinutes =
-        parseInt(process.env["LDT_TRACE_FLUSH_PERIOD_MINUTES"] || "30", 10);
+        parseInt(process.env["LDT_DEBUG_FLUSH_PERIOD_MINUTES"] || "30", 10);
 
     if (isNaN(periodMinutes)) {
         throw new Error(
-            "Invalid LDT_TRACE_FLUSH_PERIOD_MINUTES: must be a number"
+            "Invalid LDT_DEBUG_FLUSH_PERIOD_MINUTES: must be a number"
         );
     }
 
     if (periodMinutes < 10) {
-        throw new Error("LDT_TRACE_FLUSH_PERIOD_MINUTES must be at least 10 minutes");
+        throw new Error("LDT_DEBUG_FLUSH_PERIOD_MINUTES must be at least 10 minutes");
     }
 
     return { flushPeriodMs: periodMinutes * 60 * 1000 };
 }
 
 async function loadCategories(): Promise<Category[]> {
+    const db = await getDatabase();
     const categories = await db
         .select({ path: schema.categoryTable.path, id: schema.categoryTable.id })
         .from(schema.categoryTable);
 
     if (categories.length === 0) {
         console.log("No categories configured. Please add categories to start tracing.");
-        process.exit(0);
+        process.exit(EXIT.LSB_NOTCONFIGURED);
     }
 
-    console.log(`[TRACE] Loaded ${categories.length} categories from database`);
+    console.log(`[DEBUG] Loaded ${categories.length} categories from database`);
     categories.forEach((cat) => console.log(`  - ${cat.path}`));
 
     return categories;
@@ -104,12 +105,14 @@ function createDualBuffer(): DualBuffer {
 
 async function persistToDatabase(flushBuffer: Map<string, number>) {
     console.log(
-        `[TRACE] Flush started (${flushBuffer.size} buckets)`
+        `[DEBUG] Flush started (${flushBuffer.size} buckets)`
     );
     const startTime = Date.now();
     let successCount = 0;
     let errorCount = 0;
     let totalCount = 0;
+
+    const db = await getDatabase();
 
     for (const [bucket, count] of flushBuffer.entries()) {
         totalCount += count;
@@ -143,7 +146,7 @@ async function persistToDatabase(flushBuffer: Map<string, number>) {
 
     const duration = Date.now() - startTime;
     console.log(
-        `[TRACE] Flushed ${flushBuffer.size} buckets (${totalCount} events, ${successCount} ok, ${errorCount} failed) in ${duration}ms`
+        `[DEBUG] Flushed ${flushBuffer.size} buckets (${totalCount} events, ${successCount} ok, ${errorCount} failed) in ${duration}ms`
     );
 }
 
@@ -165,52 +168,55 @@ function parseLineEvent(line: string): { comm?: string; pid?: number; types?: st
 
 export default async function (
     this: LocalContext,
-    _flags: TraceCommandFlags
+    _flags: DEBUGCommandFlags
 ): Promise<void> {
     const { flushPeriodMs } = loadConfig();
     const categories = await loadCategories();
     const matcher = buildCategoryIndex(categories);
     const buffer = createDualBuffer();
 
-    console.log(
-        `[INFO] Starting trace command with ${flushPeriodMs / 1000 / 60}-minute flush period with pid=${process.pid}`
-    );
-
-    const fatrace = spawn("/usr/bin/fatrace", ["-cj", '--filter=W+D<>']);
-
-    fatrace.on('error', (err) => {
-        console.error('Failed to spawn fatrace process', err);
-        process.exit(1);
-    });
-    fatrace.on('close', (code) => {
-        if (code !== 0) {
-            console.error('Failed to spawn fatrace process: fatrace exit code:%d', code);
-            process.exit(1);
-        }
-    });
-
-    fatrace.stderr.on('data', (data) => {
-        console.error(`${data}`);
-    });
-
-
-    if (!fatrace.stdout) {
-        console.error("Failed to spawn fatrace process");
-        process.exit(1);
-    }
-
-    console.log("[TRACE] fatrace process spawned successfully");
-
-    const readline = createInterface({
-        input: fatrace.stdout as NodeJS.ReadableStream,
-        crlfDelay: Infinity,
-    });
-
     let isShuttingDown = false;
     let flushInProgress: Promise<void> | null = null;
     let eventCount = 0;
 
-    readline.on("line", (line: string) => {
+    console.log(
+        `[INFO] Starting DEBUG command with ${flushPeriodMs / 1000 / 60}-minute flush period. pid:${process.pid}`
+    );
+
+    console.log(`[DEBUG] Connecting to relay socket at ${RELAY_SOCKET_PATH}...`);
+    let socketBuffer = "";
+    const socket = await Bun.connect({
+        unix: RELAY_SOCKET_PATH,
+        socket: {
+            data(socket, chunk) {
+                socketBuffer += Buffer.from(chunk).toString();
+
+                let idx;
+
+                while ((idx = socketBuffer.indexOf("\n")) !== -1) {
+                    const line = socketBuffer.slice(0, idx);
+                    socketBuffer = socketBuffer.slice(idx + 1);
+
+                    handleLine(line);
+                }
+            },
+            open() {
+                console.log("[DEBUG] Relay socket connected");
+            },
+            close() {
+                console.log("[DEBUG] Relay socket closed");
+            },
+            error(_, err) {
+                console.error(err);
+            },
+            connectError(_, err) {
+                console.error("connect failed", err);
+            },
+        },
+    });
+
+
+    function handleLine(line: string) {
         if (isShuttingDown) return;
 
         const event = parseLineEvent(line);
@@ -225,7 +231,9 @@ export default async function (
         }
         buffer.incrementActive(bucket);
         eventCount++;
-    });
+    }
+
+
 
     function flush() {
         if (flushInProgress) return;
@@ -240,10 +248,10 @@ export default async function (
 
     const handleShutdown = async () => {
         isShuttingDown = true;
-        console.log("[TRACE] Shutdown signal received");
+        console.log("[DEBUG] Shutdown signal received");
         clearInterval(flushTimer);
-        readline.close();
-        fatrace.kill();
+        // readline.close();
+        // faDEBUG.kill();
 
         buffer.swap();
         const flushBuf = buffer.getFlush();
@@ -262,14 +270,19 @@ export default async function (
         }
 
         console.log("[INFO] Shutdown complete");
-        process.exit(0);
+        process.exit(EXIT.SUCCESS);
     };
 
     process.on("SIGTERM", handleShutdown);
     process.on("SIGINT", handleShutdown);
     process.on("SIGUSR1", function(){
+        console.log("[DEBUG] SIGUSR1 received: performing manual flush");
         clearInterval(flushTimer);
         flush();
         flushTimer = setInterval(flush, flushPeriodMs);
     });
+
+    
+
+
 }

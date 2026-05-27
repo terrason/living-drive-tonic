@@ -1,0 +1,5 @@
+__ldt_complete() {
+    export COMP_LINE;
+    COMPREPLY=( $(/usr/lib/@PKGNAME@/__ldt_bash_complete $COMP_LINE) ); return 0; 
+}
+complete -o default -o nospace -F __ldt_complete ldt

@@ -17,14 +17,11 @@ jobs:
         run: bun install
 
       - name: Build
-        run: bun build --outdir ./dist --production --target=bun --format=esm src/bin/cli.ts src/bin/bash-complete.ts
-
-      - name: Package
-        run: bun pm pack --filename living-drive-tonic.tgz
+        run: bun run pack
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: living-drive-tonic.tgz
+          files: package.tgz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,22 @@
+[Unit]
+Description=Fatrace Privileged Data Producer
+PartOf=ldt.service
+
+[Service]
+Type=simple
+User=root
+Group=ldt
+
+ExecStart=/usr/bin/ldt trace relay
+
+Restart=on-failure
+RestartSec=2
+
+# 安全限制
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

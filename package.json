@@ -11,22 +11,25 @@
         "share"
     ],
     "bin": {
-        "ldt": "dist/cli.js",
-        "__ldt_bash_complete": "dist/bash-complete.js"
+        "ldt": "dist/bin/cli.js",
+        "__ldt_bash_complete": "dist/bin/bash-complete.js"
     },
     "engines": {
         "bun": ">=1.3.0"
     },
     "scripts": {
-        
+        "db:migrate:generate": "drizzle-kit generate",
+        "db:migrate": "bun src/bin/cli.ts migrate",
+        "build": "bun build --outdir=dist --target=bun src/bin/cli.ts src/bin/bash-complete.ts",
+        "pack": "bun run build --production && bun pm pack --filename package.tgz"
     },
     "dependencies": {
         "@stricli/auto-complete": "^1.2.6",
         "@stricli/core": "^1.2.6",
-        "drizzle-orm": "^0.45.2"
+        "drizzle-orm": "^1.0.0-beta.22"
     },
     "devDependencies": {
         "@types/bun": "^1.3.14",
-        "drizzle-kit": "^0.31.10"
+        "drizzle-kit": "^1.0.0-beta.22"
     }
 }

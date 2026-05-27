@@ -1,5 +1,5 @@
 import type { LocalContext } from "../../context";
-import { db } from "../../context";
+import { getDatabase } from "../../context";
 import { statTable } from "../../db/schema";
 import { desc } from 'drizzle-orm';
 
@@ -9,6 +9,7 @@ interface StatCommandFlags {
 
 export default async function (this: LocalContext, flags: StatCommandFlags): Promise<void> {
     try {
+        const db = await getDatabase();
         const result = await db.select().from(statTable).orderBy(desc(statTable.count));
         console.table(result);
     } catch (error) {
