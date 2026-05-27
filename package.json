@@ -4,7 +4,7 @@
     "description": "Protect your portable Linux (living) drive by detecting frequent write directories and redirecting them to the host's internal disk — extending SSD lifespan.",
     "license": "MIT",
     "type": "module",
-    "version": "0.1.0-alpha.7",
+    "version": "0.2.0-alpha.0",
     "files": [
         "dist",
         "scripts",
