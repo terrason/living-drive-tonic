@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -o errexit
 set -o pipefail
-set -x
 
 if [[ -z "$1" ]]; then
     echo "Usage: $0 <increment>"
