@@ -4,11 +4,14 @@ on:
     tags:
       - 'v*' # Triggers on tags like v1.0.0
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -19,9 +22,29 @@ jobs:
       - name: Build
         run: bun run pack
 
+      - name: Compute SHA256 and update PKGBUILD
+        run: |
+        
+          # 计算 package.tgz 的 SHA256
+          SHA256=$(sha256sum package.tgz | awk '{print $1}')
+          # 更新 sha256sums 行
+          sed -i "/^sha256sums=/c\sha256sums=('$SHA256')" config/aur/PKGBUILD
+
+          # 构造下载 URL
+          SOURCE_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/package.tgz"
+          sed -i "/^source=/c\source=(\"${SOURCE_URL}\")" config/aur/PKGBUILD
+
+          echo "Updated PKGBUILD: "
+          grep -E '^(sha256sums|source)=' config/aur/PKGBUILD
+
+      - name: Package AUR files
+        run: tar -czf aur.tgz -C config/aur .
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: package.tgz
+          files: |
+            package.tgz
+            aur.tgz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -207,10 +207,10 @@ export default async function (
                 console.log("[DEBUG] Relay socket closed");
             },
             error(_, err) {
-                console.error(err);
+                console.error("[ERROR] Relay socket error:", err.message);
             },
             connectError(_, err) {
-                console.error("connect failed", err);
+                console.error("[ERROR] Failed to connect to relay socket:", err.message);
             },
         },
     });

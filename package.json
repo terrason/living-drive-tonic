@@ -21,7 +21,7 @@
         "db:migrate:generate": "drizzle-kit generate",
         "db:migrate": "bun src/bin/cli.ts migrate",
         "build": "bun build --outdir=dist --target=bun src/bin/cli.ts src/bin/bash-complete.ts",
-        "pack": "bun run build --production && bun pm pack --filename package.tgz"
+        "pack": "bun run build --production && bun pm pack --filename package.tgz && sed -i \"s/SKIP/$(sha256sum package.tgz | awk '{print $1}')/g\" config/aur/PKGBUILD"
     },
     "dependencies": {
         "@stricli/auto-complete": "^1.2.6",
