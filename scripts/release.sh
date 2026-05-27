@@ -16,6 +16,8 @@ GIT_TAG=$(bun pm version $1)
 echo "New git tag: $GIT_TAG"
 bun build --production --outdir=dist --target=bun src/bin/*
 bun pm pack --filename config/aur/package.tgz
+echo
+
 
 cd config/aur
 
@@ -31,7 +33,7 @@ grep -E '^(pkgver|sha256sums)=' PKGBUILD
 makepkg --printsrcinfo > .SRCINFO
 git add PKGBUILD .SRCINFO package.tgz
 git commit -m "Release $PKGVER"
-git push
+git push --quiet
 
 cd ../..
 git add config/aur/PKGBUILD
