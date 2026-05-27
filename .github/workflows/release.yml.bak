@@ -20,22 +20,27 @@ jobs:
         run: bun install
 
       - name: Build
-        run: bun run pack
+        run: bun run build:pack
 
       - name: Compute SHA256 and update PKGBUILD
         run: |
-        
           # 计算 package.tgz 的 SHA256
           SHA256=$(sha256sum package.tgz | awk '{print $1}')
           # 更新 sha256sums 行
           sed -i "/^sha256sums=/c\sha256sums=('$SHA256')" config/aur/PKGBUILD
 
+          TAG="${{ github.ref_name }}"
+
           # 构造下载 URL
-          SOURCE_URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/package.tgz"
+          SOURCE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/package.tgz"
           sed -i "/^source=/c\source=(\"${SOURCE_URL}\")" config/aur/PKGBUILD
 
+          # 更新 pkgver
+          PKGVER="${TAG#v}"; PKGVER="${PKGVER//-/.}"
+          sed -i "/^pkgver=/c\pkgver=${PKGVER}" config/aur/PKGBUILD
+
           echo "Updated PKGBUILD: "
-          grep -E '^(sha256sums|source)=' config/aur/PKGBUILD
+          grep -E '^(pkgver|sha256sums|source)=' config/aur/PKGBUILD
 
       - name: Package AUR files
         run: tar -czf aur.tgz -C config/aur .

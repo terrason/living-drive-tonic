@@ -1,16 +1,16 @@
 # Maintainer: terrason <jterraghost@gmail.com>
 pkgname=living-drive-tonic
-pkgver=0.1.0.alpha.1
+pkgver=0.1.0.alpha.2
 pkgrel=1
 pkgdesc="Protect your portable Linux (living) drive by detecting frequent write directories and redirecting them to the host's internal disk — extending SSD lifespan."
 arch=('x86_64')
 url="https://github.com/terrason/living-drive-tonic"
 license=('MIT')
-install=".install"
-depends=('bun')
+install="$pkgname.install"
+depends=('bun' 'fatrace-minimal')
 optdepends=('bash-completion: 为 ldt 命令启用 Tab 键自动补全')
-source=("https://github.com/terrason/$pkgname/releases/download/0.1.0-alpha.1/package.tgz")
-sha256sums=('SKIP')  # 请下载文件后生成正确的 SHA256 校验值替换此处
+source=("package.tgz")
+sha256sums=('SKIP')
 
 package() {
     # 主命令

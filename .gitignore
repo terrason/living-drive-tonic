@@ -27,3 +27,6 @@ jspm_packages/
 dist
 
 .var
+config/aur/package.tgz
+config/aur/.SCRATCH
+
