@@ -35,4 +35,4 @@ git push
 
 cd ../..
 git add config/aur/PKGBUILD
-git commit --amend
+git commit -m "Update PKGBUILD for $PKGVER"
