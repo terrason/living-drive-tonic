@@ -21,7 +21,7 @@
         "db:migrate:generate": "drizzle-kit generate",
         "db:migrate": "bun src/bin/cli.ts migrate",
         "build:dist": "bun build --outdir=dist --target=bun src/bin/cli.ts src/bin/bash-complete.ts",
-        "build:pack": "bun run build:dist --production && bun pm pack --filename package.tgz"
+        "build:pack": "bun run build:dist --production && bun pm pack --filename config/aur/package.tgz"
     },
     "dependencies": {
         "@stricli/auto-complete": "^1.2.6",
