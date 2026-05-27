@@ -27,6 +27,8 @@ sed -i "/^pkgver=/c\pkgver=${PKGVER}" PKGBUILD
 SHA256=$(sha256sum package.tgz | awk '{print $1}')
 sed -i "/^sha256sums=/c\sha256sums=('$SHA256')" PKGBUILD
 
+sed -i "/^pkgrel=/c\pkgrel=1" PKGBUILD
+
 echo "Updated PKGBUILD: "
 grep -E '^(pkgver|sha256sums)=' PKGBUILD
 

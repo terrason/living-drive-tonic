@@ -29,4 +29,7 @@ dist
 .var
 config/aur/package.tgz
 config/aur/.SRCINFO
+config/aur/pkg
+config/aur/src
+config/aur/*.tar.zst
 

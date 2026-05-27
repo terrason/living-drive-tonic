@@ -1,13 +1,16 @@
 [Unit]
 Description=Fatrace Privileged Data Producer
-PartOf=ldt.service
+PartOf=@PKGNAME@.service
 
 [Service]
-Type=simple
+Type=notify
 User=root
 Group=ldt
 
 ExecStart=/usr/bin/ldt trace relay
+
+RuntimeDirectory=@PKGNAME@
+RuntimeDirectoryMode=0750
 
 Restart=on-failure
 RestartSec=2

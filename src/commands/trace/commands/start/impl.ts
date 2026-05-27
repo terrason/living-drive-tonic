@@ -49,7 +49,7 @@ async function loadCategories(): Promise<Category[]> {
     }
 
     console.log(`[DEBUG] Loaded ${categories.length} categories from database`);
-    categories.forEach((cat) => console.log(`  - ${cat.path}`));
+    categories.forEach((cat) => console.log(`[DEBUG]  - ${cat.path}`));
 
     return categories;
 }

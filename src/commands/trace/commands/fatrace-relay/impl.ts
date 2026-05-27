@@ -62,8 +62,12 @@ export default async function (this: LocalContext, _flags: FatraceRelayCommandFl
 
     // 5. 退出处理
     fatrace.exited.then((code) => {
+        if(code === 143) {
+            console.log('[DEBUG] Fatrace process terminated by signal (expected on shutdown)');
+            return;
+        }
         if (code !== EXIT.SUCCESS) {
-            console.error('Failed to spawn fatrace process: fatrace exit code:%d', code);
+            console.error('[ERROR] Failed to spawn fatrace process: fatrace exit code:%d', code);
             process.exit(EXIT.FAILURE);
         }
     })
@@ -77,4 +81,7 @@ export default async function (this: LocalContext, _flags: FatraceRelayCommandFl
     process.on("SIGINT", handleShutdown);
 
 
+    if(process.env["NOTIFY_SOCKET"]){
+        await Bun.$`systemd-notify --ready --status="Fatrace relay server is ready"`;
+    }
 }

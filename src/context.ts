@@ -11,6 +11,8 @@ import path from "node:path";
 const isProduction = process.env.NODE_ENV === 'production';
 console.log(`[DEBUG] Running in ${isProduction ? 'production' : 'development'} mode`);
 
+export const SHARE_DIR = isProduction ? `/usr/share/${name}` : `${import.meta.dir}/../share`;
+
 export const DB_PATH = isProduction ? (process.env["DB_FILE_NAME"] ?? `/var/lib/${name}/sqlite.db`) : `${import.meta.dir}/../.var/sqlite.db`;
 console.log(`[DEBUG] Database path: ${DB_PATH}`);
 
@@ -57,6 +59,7 @@ function findPackageJSON(startDir: string): string | null {
     return null;
 }
 
+/**@deprecated */
 export function getScriptsDir(): string {
     const isProduction = process.env.NODE_ENV === 'production';
 

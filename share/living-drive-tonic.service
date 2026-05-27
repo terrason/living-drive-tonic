@@ -1,7 +1,7 @@
 [Unit]
-Description=Living Drive Tonic daemon — runs the ldt tracing service and manages runtime/state directories for the ldt user
-Requires=ldt-fatrace.service
-After=ldt-fatrace.service
+Description=Living Drive Tonic daemon
+Requires=@PKGNAME@-fatrace.service
+After=@PKGNAME@-fatrace.service
 
 [Service]
 Type=simple
@@ -12,8 +12,7 @@ User=ldt
 Restart=on-failure
 
 StateDirectory=@PKGNAME@
-RuntimeDirectory=@PKGNAME@
-RuntimeDirectoryMode=0750
 
 [Install]
 WantedBy=multi-user.target
+Also=@PKGNAME@-fatrace.service
