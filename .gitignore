@@ -28,5 +28,5 @@ dist
 
 .var
 config/aur/package.tgz
-config/aur/.SCRATCH
+config/aur/.SRCINFO
 

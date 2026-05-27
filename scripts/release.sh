@@ -32,3 +32,7 @@ makepkg --printsrcinfo > .SRCINFO
 git add PKGBUILD .SRCINFO package.tgz
 git commit -m "Release $PKGVER"
 git push
+
+cd ../..
+git add config/aur/PKGBUILD
+git commit --amend
