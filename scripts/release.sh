@@ -13,6 +13,7 @@ git pull
 
 cd ../..
 GIT_TAG=$(bun pm version $1)
+echo "New git tag: $GIT_TAG"
 bun build --production --outdir=dist --target=bun src/bin/*
 bun pm pack --filename config/aur/package.tgz
 
