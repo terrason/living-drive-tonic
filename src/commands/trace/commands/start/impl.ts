@@ -189,7 +189,14 @@ export default async function (
         unix: RELAY_SOCKET_PATH,
         socket: {
             data(socket, chunk) {
-                socketBuffer += Buffer.from(chunk).toString();
+                const line = Buffer.from(chunk).toString();
+                if(line.startsWith("ERROR:")) {
+                    console.error(`[ERROR] Relay socket error: ${line}`);
+                    socket.close();
+                    process.exit(EXIT.BSD_UNAVAILABLE);
+                    return;
+                }
+                socketBuffer += line;
 
                 let idx;
 
