@@ -12,6 +12,9 @@ User=ldt
 Restart=on-failure
 
 StateDirectory=@PKGNAME@
+RuntimeDirectory=@PKGNAME@
+RuntimeDirectoryMode=0750
+
 
 [Install]
 WantedBy=multi-user.target

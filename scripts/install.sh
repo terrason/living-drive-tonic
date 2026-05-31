@@ -14,4 +14,4 @@ SHA256=$(sha256sum package.tgz | awk '{print $1}')
 sed -i "/^sha256sums=/c\sha256sums=('$SHA256')" PKGBUILD
 
 makepkg --printsrcinfo > .SRCINFO
-makepkg -si
+makepkg -si --force

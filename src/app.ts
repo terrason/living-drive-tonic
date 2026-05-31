@@ -29,7 +29,11 @@ const routes = buildRouteMap({
             defaultCommand: "start",
             docs: {
                 brief: "Trace file access patterns",
-                description: "Continuously observes system file access behavior and aggregates statistics by configured categories",
+                fullDescription: "Continuously observes system file access behavior and aggregates statistics by configured categories",
+                customUsage: [
+                    "trace start --verbose --flush-period 30",
+                    "trace relay -vv",
+                ],
             },
         }),
         reset: resetCommand,
@@ -39,15 +43,11 @@ const routes = buildRouteMap({
         unbind: unbindCommand,
         sync: syncCommand,
         unsync: unsyncCommand,
-        install: buildInstallCommand(BIN_NAME, { bash: `__${BIN_NAME}_bash_complete` }),
-        uninstall: buildUninstallCommand(BIN_NAME, { bash: true }),
     },
     docs: {
         brief: description,
         hideRoute: {
             migrate: true,
-            install: true,
-            uninstall: true,
         },
     },
 });

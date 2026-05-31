@@ -5,16 +5,19 @@ import { drizzle } from 'drizzle-orm/bun-sqlite';
 import { migrateDatabase } from "./db/utils";
 import { name } from "../package.json";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 const isProduction = process.env.NODE_ENV === 'production';
-console.log(`[DEBUG] Running in ${isProduction ? 'production' : 'development'} mode`);
+if (process.env["DEBUG"]) {
+    console.log(`[DEBUG] Running in ${isProduction ? 'production' : 'development'} mode`);
+}
 
 export const SHARE_DIR = isProduction ? `/usr/share/${name}` : `${import.meta.dir}/../share`;
 
 export const DB_PATH = isProduction ? (process.env["DB_FILE_NAME"] ?? `/var/lib/${name}/sqlite.db`) : `${import.meta.dir}/../.var/sqlite.db`;
-console.log(`[DEBUG] Database path: ${DB_PATH}`);
+if (process.env["DEBUG"]) {
+    console.log(`[DEBUG] Database path: ${DB_PATH}`);
+}
 
 let db: SQLiteBunDatabase | null = null;
 
@@ -34,7 +37,7 @@ export async function getDatabase() {
     return db;
 }
 
-export const RELAY_SOCKET_PATH = `/run/${name}/fatrace-relay.sock`;
+export const RELAY_SOCKET_PATH = isProduction ? `/run/${name}-admin/fatrace-relay.sock` : `${import.meta.dir}/../.var/fatrace-relay.sock`;
 
 export interface LocalContext extends CommandContext, StricliAutoCompleteContext {
     readonly process: NodeJS.Process;
@@ -43,12 +46,10 @@ export interface LocalContext extends CommandContext, StricliAutoCompleteContext
 
 export function buildContext(process: NodeJS.Process): LocalContext {
     return {
-        process,
-        os,
-        fs,
-        path,
+        process
     };
 }
+
 function findPackageJSON(startDir: string): string | null {
     let currentDir = startDir;
     while (currentDir !== path.parse(currentDir).root) {

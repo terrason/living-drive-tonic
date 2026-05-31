@@ -1,11 +1,14 @@
 import net from "node:net";
 import { createInterface } from "node:readline";
 import type { LocalContext } from "../../../../context";
+import type { GlobalFlags } from "../../../../globalFlags";
 import { getDatabase, EXIT, RELAY_SOCKET_PATH } from "../../../../context";
 import * as schema from "../../../../db/schema";
 import { eq } from "drizzle-orm";
+import { createLogger, type Logger } from "../../../../utils/logger";
 
-interface DEBUGCommandFlags {
+interface TraceStartCommandFlags extends GlobalFlags {
+    flushPeriod: number;
     // ...
 }
 
@@ -20,36 +23,19 @@ interface DualBuffer {
     swap: () => void;
 }
 
-function loadConfig(): { flushPeriodMs: number } {
-    const periodMinutes =
-        parseInt(process.env["LDT_DEBUG_FLUSH_PERIOD_MINUTES"] || "30", 10);
-
-    if (isNaN(periodMinutes)) {
-        throw new Error(
-            "Invalid LDT_DEBUG_FLUSH_PERIOD_MINUTES: must be a number"
-        );
-    }
-
-    if (periodMinutes < 10) {
-        throw new Error("LDT_DEBUG_FLUSH_PERIOD_MINUTES must be at least 10 minutes");
-    }
-
-    return { flushPeriodMs: periodMinutes * 60 * 1000 };
-}
-
-async function loadCategories(): Promise<Category[]> {
+async function loadCategories(logger: Logger): Promise<Category[]> {
     const db = await getDatabase();
     const categories = await db
         .select({ path: schema.categoryTable.path, id: schema.categoryTable.id })
         .from(schema.categoryTable);
 
     if (categories.length === 0) {
-        console.log("No categories configured. Please add categories to start tracing.");
+        logger.log("No categories configured. Please add categories to start tracing.");
         process.exit(EXIT.LSB_NOTCONFIGURED);
     }
 
-    console.log(`[DEBUG] Loaded ${categories.length} categories from database`);
-    categories.forEach((cat) => console.log(`[DEBUG]  - ${cat.path}`));
+    logger.debug(`Loaded ${categories.length} categories from database`);
+    categories.forEach((cat) => logger.debug(`  - ${cat.path}`));
 
     return categories;
 }
@@ -103,10 +89,8 @@ function createDualBuffer(): DualBuffer {
     };
 }
 
-async function persistToDatabase(flushBuffer: Map<string, number>) {
-    console.log(
-        `[DEBUG] Flush started (${flushBuffer.size} buckets)`
-    );
+async function persistToDatabase(flushBuffer: Map<string, number>, logger: Logger) {
+    logger.debug(`Flush started (${flushBuffer.size} buckets)`);
     const startTime = Date.now();
     let successCount = 0;
     let errorCount = 0;
@@ -137,20 +121,17 @@ async function persistToDatabase(flushBuffer: Map<string, number>) {
             successCount++;
         } catch (error) {
             errorCount++;
-            console.error(
-                `[${new Date().toISOString()}] Failed to persist stat for ${bucket}:`,
-                error
+            logger.error(
+                `[${new Date().toISOString()}] Failed to persist stat for ${bucket}: ${error}`
             );
         }
     }
 
     const duration = Date.now() - startTime;
-    console.log(
-        `[DEBUG] Flushed ${flushBuffer.size} buckets (${totalCount} events, ${successCount} ok, ${errorCount} failed) in ${duration}ms`
-    );
+    logger.debug(`Flushed ${flushBuffer.size} buckets (${totalCount} events, ${successCount} ok, ${errorCount} failed) in ${duration}ms`);
 }
 
-function parseLineEvent(line: string): { comm?: string; pid?: number; types?: string; path?: string } | null {
+function parseLineEvent(line: string, logger: Logger): { comm?: string; pid?: number; types?: string; path?: string } | null {
     try {
         const obj = JSON.parse(line);
         return {
@@ -160,7 +141,7 @@ function parseLineEvent(line: string): { comm?: string; pid?: number; types?: st
             path: obj.path,
         };
     } catch {
-        console.log(`[INFO] Malformed JSON line: ${line}`);
+        logger.info(`Malformed JSON line: ${line}`);
         return null;
     }
 }
@@ -168,10 +149,11 @@ function parseLineEvent(line: string): { comm?: string; pid?: number; types?: st
 
 export default async function (
     this: LocalContext,
-    _flags: DEBUGCommandFlags
+    _flags: TraceStartCommandFlags
 ): Promise<void> {
-    const { flushPeriodMs } = loadConfig();
-    const categories = await loadCategories();
+    const logger = createLogger(_flags);
+    const flushPeriodMs = _flags.flushPeriod * 60 * 1000;
+    const categories = await loadCategories(logger);
     const matcher = buildCategoryIndex(categories);
     const buffer = createDualBuffer();
 
@@ -179,11 +161,9 @@ export default async function (
     let flushInProgress: Promise<void> | null = null;
     let eventCount = 0;
 
-    console.log(
-        `[INFO] Starting DEBUG command with ${flushPeriodMs / 1000 / 60}-minute flush period. pid:${process.pid}`
-    );
+    logger.info(`Starting DEBUG command with ${_flags.flushPeriod}-minute flush period. pid: ${process.pid}`);
 
-    console.log(`[DEBUG] Connecting to relay socket at ${RELAY_SOCKET_PATH}...`);
+    logger.debug(`Connecting to relay socket at ${RELAY_SOCKET_PATH}...`);
     let socketBuffer = "";
     const socket = await Bun.connect({
         unix: RELAY_SOCKET_PATH,
@@ -191,7 +171,7 @@ export default async function (
             data(socket, chunk) {
                 const line = Buffer.from(chunk).toString();
                 if(line.startsWith("ERROR:")) {
-                    console.error(`[ERROR] Relay socket error: ${line}`);
+                    logger.error(`Relay socket error: ${line}`);
                     socket.close();
                     process.exit(EXIT.BSD_UNAVAILABLE);
                     return;
@@ -208,16 +188,19 @@ export default async function (
                 }
             },
             open() {
-                console.log("[DEBUG] Relay socket connected");
+                logger.debug(`Relay socket connected`);
             },
             close() {
-                console.log("[DEBUG] Relay socket closed");
+                logger.error(`Relay socket closed`);
+                process.exit(EXIT.BSD_UNAVAILABLE);
             },
             error(_, err) {
-                console.error("[ERROR] Relay socket error:", err.message);
+                logger.error(`Relay socket error: ${err.message}`);
+                process.exit(EXIT.BSD_UNAVAILABLE);
             },
             connectError(_, err) {
-                console.error("[ERROR] Failed to connect to relay socket:", err.message);
+                logger.error(`Failed to connect to relay socket: ${err.message}`);
+                process.exit(EXIT.BSD_UNAVAILABLE);
             },
         },
     });
@@ -226,7 +209,7 @@ export default async function (
     function handleLine(line: string) {
         if (isShuttingDown) return;
 
-        const event = parseLineEvent(line);
+        const event = parseLineEvent(line, logger);
         if (!event || !event.path) {
             //不输出日志，存在很多 `{"comm":"code","pid":6091,"types":"CW"}` 这样的行
             return;
@@ -234,7 +217,7 @@ export default async function (
 
         const bucket = matcher(event.path);
         if (bucket === UNMATCHED) {
-            console.debug(`[DEBUG] Unmatched path: ${event.path}`);
+            logger.debug(`Unmatched path: ${event.path}`);
         }
         buffer.incrementActive(bucket);
         eventCount++;
@@ -247,7 +230,7 @@ export default async function (
 
         buffer.swap();
         const flushBuf = buffer.getFlush();
-        flushInProgress = persistToDatabase(flushBuf).finally(() => {
+        flushInProgress = persistToDatabase(flushBuf, logger).finally(() => {
             flushInProgress = null;
         });
     }
@@ -255,15 +238,13 @@ export default async function (
 
     const handleShutdown = async () => {
         isShuttingDown = true;
-        console.log("[DEBUG] Shutdown signal received");
+        logger.debug(`Shutdown signal received`);
         clearInterval(flushTimer);
-        // readline.close();
-        // faDEBUG.kill();
 
         buffer.swap();
         const flushBuf = buffer.getFlush();
-        console.log(`[INFO] Performing final flush (${eventCount} total events processed)`);
-        await persistToDatabase(flushBuf);
+        logger.info(`Performing final flush (${eventCount} total events processed)`);
+        await persistToDatabase(flushBuf, logger);
 
         if (flushInProgress) {
             await Promise.race([
@@ -272,18 +253,18 @@ export default async function (
                     setTimeout(() => reject(new Error("Flush timeout")), 5000)
                 ),
             ]).catch(() => {
-                console.error("Final flush timed out");
+                logger.error(`Final flush timed out`);
             });
         }
 
-        console.log("[INFO] Shutdown complete");
+        logger.info(`Shutdown complete`);
         process.exit(EXIT.SUCCESS);
     };
 
     process.on("SIGTERM", handleShutdown);
     process.on("SIGINT", handleShutdown);
     process.on("SIGUSR1", function(){
-        console.log("[DEBUG] SIGUSR1 received: performing manual flush");
+        logger.debug(`SIGUSR1 received: performing manual flush`);
         clearInterval(flushTimer);
         flush();
         flushTimer = setInterval(flush, flushPeriodMs);

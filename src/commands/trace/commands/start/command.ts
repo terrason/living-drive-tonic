@@ -1,15 +1,31 @@
-import { buildCommand } from "@stricli/core";
+import { buildCommand, numberParser } from "@stricli/core";
+import { parameters } from "../../../../globalFlags";
 
 export const traceStartCommand = buildCommand({
     loader: async () => import("./impl"),
     parameters: {
-        positional: {
-            kind: "tuple",
-            parameters: [],
+        flags: {
+            ...parameters.flags,
+            flushPeriod: {
+                kind: "parsed",
+                parse: numberParser,
+                brief: "The period (in minutes) for flushing aggregated statistics to the database. Default is 30 minutes.",
+                default: "30",
+            },
         },
+        aliases: {
+            ...parameters.aliases,
+            p: "flushPeriod",
+        },
+
     },
     docs: {
         brief: "Continuously observes system file access behavior and aggregates statistics by configured categories",
-        description: "This command monitor file access events in real-time. It collects data on which files are being accessed and aggregates this information based on user-defined categories. The aggregated statistics can then be used for analysis or optimization purposes.",
+        customUsage: [
+            "--verbose",
+            "-v",
+            "-vv",
+            "--flush-period <minutes>",
+        ],
     },
 });

@@ -1,15 +1,19 @@
 import type { LocalContext } from "../../../../context";
 import { chown } from 'node:fs'
 import { EXIT, RELAY_SOCKET_PATH } from "../../../../context";
+import type { GlobalFlags } from "../../../../globalFlags";
+import { createLogger } from "../../../../utils/logger";
 
-interface FatraceRelayCommandFlags {
+interface FatraceRelayCommandFlags extends GlobalFlags {
     // ...
 }
 
 
 export default async function (this: LocalContext, _flags: FatraceRelayCommandFlags): Promise<void> {
+    const logger = createLogger(_flags);
+
     if (process.geteuid() !== 0) {
-        console.error(`[ERROR] This program must be run as root`);
+        logger.error(`This program must be run as root`);
         process.exit(EXIT.FAILURE);
     }
 
@@ -24,18 +28,21 @@ export default async function (this: LocalContext, _flags: FatraceRelayCommandFl
         socket: {
             open(socket) {
                 if (client) {
-                    console.warn(`[WARN] Consumer port is already in use. Rejecting new connection.`);
+                    logger.warn(`Consumer port is already in use. Rejecting new connection.`);
                     socket.end("ERROR: There is already a client pinned, only one client allowed at a time.\n");
                     return;
                 }
                 client = socket;
+                logger.debug(`New client connected to fatrace relay`);
             },
             close(socket) {
                 if (socket === client) {
                     client = null;
+                    logger.debug(`Client disconnected from fatrace relay`);
                 }
             },
             error(socket, error) {
+                logger.error(`Client error on fatrace relay`);
                 if (socket === client) {
                     client = null;
                 }
@@ -45,7 +52,7 @@ export default async function (this: LocalContext, _flags: FatraceRelayCommandFl
             }
         },
     });
-    console.log(`[INFO] Fatrace relay server started at ${RELAY_SOCKET_PATH}`);
+    logger.info(`Fatrace relay server started at ${RELAY_SOCKET_PATH}`);
     await Bun.$`chmod 660 ${RELAY_SOCKET_PATH}`
     await Bun.$`chown root:ldt ${RELAY_SOCKET_PATH}`
 
@@ -58,26 +65,22 @@ export default async function (this: LocalContext, _flags: FatraceRelayCommandFl
 
     // 4. 读取流并广播
     async function broadcastFatraceOutput() {
-        if (!client) {
-            return;
-        }
-
         for await (const chunk of fatrace.stdout) {
-            client.write(chunk)
+            client && client.write(chunk)
         }
     }
     broadcastFatraceOutput().catch((err) => {
-        console.error('Error broadcasting fatrace output', err);
+        logger.error(`Error broadcasting fatrace output: ${err}`);
     });
 
     // 5. 退出处理
     fatrace.exited.then((code) => {
         if (code === 143) {
-            console.log('[DEBUG] Fatrace process terminated by signal (expected on shutdown)');
+            logger.debug(`Fatrace process terminated by signal (expected on shutdown)`);
             return;
         }
         if (code !== EXIT.SUCCESS) {
-            console.error('[ERROR] Failed to spawn fatrace process: fatrace exit code:%d', code);
+            logger.error(`Failed to spawn fatrace process: fatrace exit code:${code}`);
             process.exit(EXIT.FAILURE);
         }
     })
@@ -85,7 +88,8 @@ export default async function (this: LocalContext, _flags: FatraceRelayCommandFl
     function handleShutdown() {
         fatrace.kill()
         server.stop()
-        console.log("[INFO] Fatrace relay server stopped");
+        logger.info(`Fatrace relay server stopped`);
+        process.exit(EXIT.SUCCESS);
     }
     process.on('SIGTERM', handleShutdown);
     process.on("SIGINT", handleShutdown);

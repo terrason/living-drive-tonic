@@ -9,7 +9,7 @@ Group=ldt
 
 ExecStart=/usr/bin/ldt trace relay
 
-RuntimeDirectory=@PKGNAME@
+RuntimeDirectory=@PKGNAME@-admin
 RuntimeDirectoryMode=0750
 
 Restart=on-failure

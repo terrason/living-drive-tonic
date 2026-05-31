@@ -152,7 +152,7 @@ sqlite persist
 - 忽略该行
 - **INFO 级日志**：记录原始行内容以便调试
   ```
-  [TRACE] Malformed JSON line: {raw line}
+  [DEBUG] Malformed JSON line: {raw line}
   ```
 
 ## unmatched 路径
@@ -160,7 +160,7 @@ sqlite persist
 - bucket = `__UNMATCHED__`
 - **DEBUG 级日志**：记录未匹配路径以便分析 category 覆盖率
   ```
-  [TRACE] Unmatched path: {event.path}
+  [DEBUG] Unmatched path: {event.path}
   ```
 
 ## fatrace crash
